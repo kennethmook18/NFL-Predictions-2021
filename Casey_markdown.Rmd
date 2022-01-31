@@ -1,0 +1,369 @@
+---
+title: "Stor538p2"
+author: "Casey Mook"
+date: "10/29/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+#read in all data frames from the github repo except offense/defense stats.
+
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(MASS)
+library(tidyr)
+library(ggplot2)
+
+game_results = read.csv("https://raw.githubusercontent.com/mattymo18/STOR-538-P2-2021-Spring/master/Source_Data/game_results.csv")
+
+stadiums = read.csv("https://raw.githubusercontent.com/mattymo18/STOR-538-P2-2021-Spring/master/Source_Data/nfl_stadiums.csv")
+
+teams = read.csv("https://raw.githubusercontent.com/mattymo18/STOR-538-P2-2021-Spring/master/Source_Data/nfl_teams.csv")
+
+recent_games <-  read.csv("/Users/caseymook/Documents/UNC/Senior Year - Fall/Sports Analytics/Playoffs Round 2/finalresults2021.csv", header = TRUE, check.names=FALSE)
+```
+
+```{r}
+
+totaloff = data.frame()
+totaldef = data.frame()
+
+#read in offense and defense stats for years 2000 to 2021
+for (i in 2000:2021){
+  #read in offense for i year
+  curoff = read.csv(paste(c("https://raw.githubusercontent.com/mattymo18/STOR-538-P2-2021-Spring/master/Source_Data/Offensive-Stats/P2.",i,".Off.Stats.csv"),collapse = ""))
+  
+newval = curoff %>% slice(1:2) 
+
+newval = data.frame(lapply(newval, as.character), stringsAsFactors=FALSE)
+
+  
+  newval=rbind(newval, row3 = apply(newval, 2, paste0, collapse = " "))
+  curoff = tail(curoff, -2)
+  colnames(curoff)<- newval %>%slice(3:3)
+  curoff = curoff[-1]
+  curoff$Year = i
+  totaloff = merge(totaloff,curoff,all= TRUE)#combine current dataframe to existing dataframe.
+  
+  #read in defense for i year
+  curdef = read.csv(paste(c("https://raw.githubusercontent.com/mattymo18/STOR-538-P2-2021-Spring/master/Source_Data/Defensive-Stats/P2.",i,".Def.Stats.csv"),collapse = ""))
+
+  newval = curdef %>% slice(1:2) 
+
+newval = data.frame(lapply(newval, as.character), stringsAsFactors=FALSE)
+
+
+  newval=rbind(newval, row3 = apply(newval, 2, paste0, collapse = " "))
+  curdef = tail(curdef, -2)
+  colnames(curdef)<- newval %>%slice(3:3)
+  curdef = curdef[-1]
+  curdef$Year = i
+  totaldef = merge(totaldef,curdef,all= TRUE)
+  
+  
+}
+
+totaloff = totaloff[1:(length(totaloff)-4)]
+colnames(totaloff) <-paste("Offense",colnames(totaloff),sep=" ")
+colnames(totaldef) <-paste("Defense",colnames(totaldef),sep=" ")
+colnames(totaloff)[2] <- "Team"
+colnames(totaldef)[2] <- "Team"
+colnames(totaloff)[29] <- "Year"
+colnames(totaldef)[29] <- "Year"
+total = merge(totaloff,totaldef, by = c("Year","Team"))
+
+```
+
+
+```{r}
+colnames(game_results)[2] = "Year"
+
+totaloffhome = totaloff %>% rename_with( ~ paste0("Home ", .x))
+totaloffaway = totaloff %>% rename_with( ~ paste0("Away ", .x))
+totaldefhome = totaldef %>% rename_with( ~ paste0("Home ", .x))
+totaldefaway = totaldef %>% rename_with( ~ paste0("Away ", .x))
+
+newresults = merge(game_results,totaloffhome,by.x = c("team_home","Year"),by.y = c("Home Team","Home Year"))
+newresults = merge(newresults,totaldefhome,by.x = c("team_home","Year"),by.y = c("Home Team","Home Year"))
+newresults = merge(newresults,totaloffaway,by.x = c("team_away","Year"),by.y = c("Away Team","Away Year"))
+newresults = merge(newresults,totaldefaway,by.x = c("team_away","Year"),by.y = c("Away Team","Away Year"))
+final_results = newresults[-c(18)]
+```
+
+
+
+
+```{r}
+
+home_subset = as.data.frame(sapply(final_results[c(7,18:125)], as.numeric))
+recent_games = as.data.frame(sapply(recent_games[c(3,7,8,9,18:125)], as.numeric))
+
+
+#home_subset[c(1,2:4)]
+
+homescore = lm(score_home~.,data = home_subset[,c(1,2:100)])
+
+#awayscore
+#summary(homescore)
+
+
+away_subset = as.data.frame(sapply(final_results[c(7,18:125)],as.numeric))
+
+
+#Convert all variables being used in model to numeric
+final_results$`Home Offense  Rk` <- as.numeric(final_results$`Home Offense  Rk`)
+final_results$`Home Offense  Yds` <- as.numeric(final_results$`Home Offense  Yds`)
+final_results$`Home Offense Passing TD` <- as.numeric(final_results$`Home Offense Passing TD`)
+final_results$`Home Offense Rushing TD` <- as.numeric(final_results$`Home Offense Rushing TD`)
+final_results$`Home Offense Passing Cmp` <- as.numeric(final_results$`Home Offense Passing Cmp`)
+final_results$`Home Offense Passing Att` <- as.numeric(final_results$`Home Offense Passing Att`)
+final_results$`Home Offense Rushing Y/A` <- as.numeric(final_results$`Home Offense Rushing Y/A`)
+final_results$`Home Offense Tot Yds & TO Y/P` <- as.numeric(final_results$`Home Offense Tot Yds & TO Y/P`)
+final_results$`Home Offense  TO%` <- as.numeric(final_results$`Home Offense  TO%`)
+final_results$`Home Offense Penalties Yds` <- as.numeric(final_results$`Home Offense Penalties Yds`)
+#final_results$`Home Offense  Sc%` <- as.numeric(final_results$`Home Offense  Sc%`)
+
+final_results$`Home Defense  Rk` <- as.numeric(final_results$`Home Defense  Rk`)
+final_results$`Home Defense  Yds` <- as.numeric(final_results$`Home Defense  Yds`)
+final_results$`Home Defense Passing TD` <- as.numeric(final_results$`Home Defense Passing TD`)
+final_results$`Home Defense Rushing TD` <- as.numeric(final_results$`Home Defense Rushing TD`)
+final_results$`Home Defense Passing Cmp` <- as.numeric(final_results$`Home Defense Passing Cmp` )
+final_results$`Home Defense Passing Att` <- as.numeric(final_results$`Home Defense Passing Att`)
+final_results$`Home Defense Rushing Y/A` <- as.numeric(final_results$`Home Defense Rushing Y/A`)
+final_results$`Home Defense Tot Yds & TO Y/P` <- as.numeric(final_results$`Home Defense Tot Yds & TO Y/P`)
+final_results$`Home Defense  TO%` <- as.numeric(final_results$`Home Defense  TO%`)
+final_results$`Home Defense Penalties Yds`<- as.numeric(final_results$`Home Defense Penalties Yds`)
+#final_results$`Home Defense  Sc%`
+
+final_results$`Away Offense  Rk` <- as.numeric(final_results$`Away Offense  Rk`)
+final_results$`Away Offense  Yds` <- as.numeric(final_results$`Away Offense  Yds`)
+final_results$`Away Offense Passing TD` <- as.numeric(final_results$`Away Offense Passing TD`)
+final_results$`Away Offense Rushing TD` <- as.numeric(final_results$`Away Offense Rushing TD`)
+final_results$`Away Offense Passing Cmp` <- as.numeric(final_results$`Away Offense Passing Cmp`)
+final_results$`Away Offense Passing Att` <- as.numeric(final_results$`Away Offense Passing Att`)
+final_results$`Away Offense Rushing Y/A` <- as.numeric(final_results$`Away Offense Rushing Y/A`)
+final_results$`Away Offense Tot Yds & TO Y/P` <- as.numeric(final_results$`Away Offense Tot Yds & TO Y/P`)
+final_results$`Away Offense  TO%` <- as.numeric(final_results$`Away Offense  TO%`)
+final_results$`Away Offense Penalties Yds` <- as.numeric(final_results$`Away Offense Penalties Yds`)
+
+final_results$`Away Defense  Rk` <- as.numeric(final_results$`Away Defense  Rk`)
+final_results$`Away Defense  Yds` <- as.numeric(final_results$`Away Defense  Yds`)
+final_results$`Away Defense Passing TD` <- as.numeric(final_results$`Away Defense Passing TD`)
+final_results$`Away Defense Rushing TD` <- as.numeric(final_results$`Away Defense Rushing TD`)
+final_results$`Away Defense Passing Cmp` <- as.numeric(final_results$`Away Defense Passing Cmp`)
+final_results$`Away Defense Passing Att` <- as.numeric(final_results$`Away Defense Passing Att`)
+final_results$`Away Defense Rushing Y/A` <- as.numeric(final_results$`Away Defense Rushing Y/A`)
+final_results$`Away Defense Tot Yds & TO Y/P` <- as.numeric(final_results$`Away Defense Tot Yds & TO Y/P`)
+final_results$`Away Defense  TO%` <- as.numeric(final_results$`Away Defense  TO%`)
+final_results$`Away Defense Penalties Yds` <- as.numeric(final_results$`Away Defense Penalties Yds`)
+
+
+final_results$`Home Offense Completion Percentage` <- (final_results$`Home Offense Passing Cmp` / final_results$`Home Offense Passing Att`)
+final_results$`Home Defense Completion Percentage` <- (final_results$`Home Defense Passing Cmp` / final_results$`Home Defense Passing Att`)
+final_results$`Away Offense Completion Percentage` <- (final_results$`Away Offense Passing Cmp` / final_results$`Away Offense Passing Att`)
+final_results$`Away Defense Completion Percentage` <- (final_results$`Away Defense Passing Cmp` / final_results$`Away Defense Passing Att`)
+
+sapply(final_results, typeof)
+
+
+final_results$Home_Team_Won <- ifelse(final_results$score_home > final_results$score_away, 1, 0)
+final_results$Home_Team_Won <- as.numeric(final_results$Home_Team_Won)
+
+#recent_games$`Home Offense Completion Percentage` <- (recent_games$`Home Offense Passing Cmp` / recent_games$`Home Offense Passing Att`)
+#recent_games$`Home Defense Completion Percentage` <- (recent_games$`Home Defense Passing Cmp` / recent_games$`Home Defense Passing Att`)
+#recent_games$`Away Offense Completion Percentage` <- (recent_games$`Away Offense Passing Cmp` / recent_games$`Away Offense Passing Att`)
+#recent_games$`Away Defense Completion Percentage` <- (recent_games$`Away Defense Passing Cmp` / recent_games$`Away Defense Passing Att`)
+
+
+#Played_Recent_Games <- drop_na(recent_games, score_home)
+
+#Not_Played  <- anti_join(recent_games, Played_Recent_Games)
+#Played_Recent_Games$Home_Team_Won <- ifelse(Played_Recent_Games$score_home > Played_Recent_Games$score_away, 1, 0)
+#Played_Recent_Games$Home_Team_Won <- as.numeric(Played_Recent_Games$Home_Team_Won)
+
+
+
+#final_results2 <- final_results %>% na.omit(final_results$score_home) 
+#dt = sort(sample(nrow(final_results2), nrow(final_results2)*.8))
+#train<-final_results2[dt,]
+#test<-final_results2[-dt,]
+
+#View(final_results2)
+
+#Win_model = glm(formula = Home_Team_Won ~ ., family = "binomial", data = final_results)
+
+#Model with Team offense/defense rank included. No Completion percentage or rushing Y/A
+#Win_Model2 = glm(formula = final_results$Home_Team_Won ~ final_results$`Home Offense  Rk` + final_results$`Home Offense  Yds` + final_results$`Home Offense Passing TD` + final_results$`Home Offense Rushing TD` + final_results$`Home Offense Tot Yds & TO Y/P` + final_results$`Home Offense  TO%` + final_results$`Home Offense Penalties Yds` + final_results$`Home Defense  Rk` + final_results$`Home Defense  Yds` + final_results$`Home Defense Passing TD` + final_results$`Home Defense Rushing TD` + final_results$`Home Defense Tot Yds & TO Y/P` + final_results$`Home Defense  TO%` + final_results$`Home Defense Penalties Yds` + final_results$`Away Offense  Rk` + final_results$`Away Offense  Yds` + final_results$`Away Offense Passing TD` + final_results$`Away Offense Rushing TD` + final_results$`Away Offense Tot Yds & TO Y/P` + final_results$`Away Offense  TO%` + final_results$`Away Offense Penalties Yds` + final_results$`Away Defense  Rk` + final_results$`Away Defense  Yds` + final_results$`Away Defense Passing TD` + final_results$`Away Defense Rushing TD` + final_results$`Away Defense Tot Yds & TO Y/P` + final_results$`Away Defense  TO%` + final_results$`Away Defense Penalties Yds`, family = "binomial")
+
+#Model with Team offense/defense rank included and Completion percentage and rushing Y/A
+#Win_Model3 = glm(formula = final_results$Home_Team_Won ~ final_results$`Home Offense  Rk` + final_results$`Home Offense  Yds` + final_results$`Home Offense Passing TD` + final_results$`Home Offense Rushing TD` + final_results$`Home Offense Tot Yds & TO Y/P` + final_results$`Home Offense  TO%` + final_results$`Home Offense Penalties Yds` + final_results$`Home Defense  Rk` + final_results$`Home Defense  Yds` + final_results$`Home Defense Passing TD` + final_results$`Home Defense Rushing TD` + final_results$`Home Defense Tot Yds & TO Y/P` + final_results$`Home Defense  TO%` + final_results$`Home Defense Penalties Yds` + final_results$`Away Offense  Rk` + final_results$`Away Offense  Yds` + final_results$`Away Offense Passing TD` + final_results$`Away Offense Rushing TD` + final_results$`Away Offense Tot Yds & TO Y/P` + final_results$`Away Offense  TO%` + final_results$`Away Offense Penalties Yds` + final_results$`Away Defense  Rk` + final_results$`Away Defense  Yds` + final_results$`Away Defense Passing TD` + final_results$`Away Defense Rushing TD` + final_results$`Away Defense Tot Yds & TO Y/P` + final_results$`Away Defense  TO%` + final_results$`Away Defense Penalties Yds` + final_results$`Home Offense Completion Percentage` + final_results$`Home Defense Completion Percentage` + final_results$`Away Offense Completion Percentage` + final_results$`Away Defense Completion Percentage` + final_results$`Home Offense Rushing Y/A` + final_results$`Away Offense Rushing Y/A` + final_results$`Home Defense Rushing Y/A` + final_results$`Away Defense Rushing Y/A`, family = "binomial")
+
+#Win_model4 = glm(formula = Home_Team_Won ~ `Home Offense  Yds` + `Home Offense Passing TD` + `Home Offense Rushing TD` + `Home Offense Tot Yds & TO Y/P` + `Home Offense  TO%` + `Home Offense Penalties Yds` + `Home Defense  Yds` + `Home Defense Passing TD` + `Home Defense Rushing TD` + `Home Defense Tot Yds & TO Y/P` + `Home Defense  TO%` + `Home Defense Penalties Yds` + `Away Offense  Yds` + `Away Offense Passing TD` + `Away Offense Rushing TD` + `Away Offense Tot Yds & TO Y/P` + `Away Offense  TO%` + `Away Offense Penalties Yds` + `Away Defense  Yds` + `Away Defense Passing TD` + `Away Defense Rushing TD` + `Away Defense Tot Yds & TO Y/P` + `Away Defense  TO%` + `Away Defense Penalties Yds` + `Home Offense Completion Percentage` + `Home Defense Completion Percentage` + `Away Offense Completion Percentage` + `Away Defense Completion Percentage` + `Home Offense Rushing Y/A` + `Away Offense Rushing Y/A` + `Home Defense Rushing Y/A` + `Away Defense Rushing Y/A`, family = "binomial", data = final_results)
+
+test_data <- as.data.frame(final_results[c(1:3, 5:8, 18:124)])
+test_data$`Home Offense Completion Percentage` <- (test_data$`Home Offense Passing Cmp` / test_data$`Home Offense Passing Att`)
+test_data$`Home Defense Completion Percentage` <- (test_data$`Home Defense Passing Cmp` / test_data$`Home Defense Passing Att`)
+test_data$`Away Offense Completion Percentage` <- (test_data$`Away Offense Passing Cmp` / test_data$`Away Offense Passing Att`)
+test_data$`Away Defense Completion Percentage` <- (test_data$`Away Defense Passing Cmp` / test_data$`Away Defense Passing Att`)
+test_data$Home_Team_Won <- ifelse(test_data$score_home > test_data$score_away, 1, 0)
+
+sapply(test_data[c(2, 4, 6:119)], as.numeric)
+#sapply(test_data, typeof)
+
+#AllNumericData <- as.data.frame(sapply(final_results[c(7, 8, 18:124)], as.numeric))
+#AllNumericData$Home_Team_Won <- ifelse(AllNumericData$score_home > AllNumericData$score_away, 1, 0)
+#AllNumericData$Home_Team_Won <- as.numeric(AllNumericData$Home_Team_Won)
+#AllNumericData <- as.data.frame(sapply(AllNumericData[c(1:3, 5, 6, 8, 9, 11:18, 20:23, 25:28, 30, 32, 33, 35, 36, 38:45, 47:50, 52:55, 57, 59, 60, 62, 63, 65:72, 74:77, 79:82, 84, 86, 87, 89, 90, 92:99, 101:104, 106:109)], as.numeric))
+#ncol(AllNumericData)
+
+#Win_model5 = glm(formula = Home_Team_Won ~ ., family = "binomial", data = AllNumericData)
+
+#stepAIC(Win_model5, direction = "backward")
+
+
+#sapply(final_results, typeof)
+
+
+#stepAIC(Win_model4, direction = "backward")
+
+#Testing model on test set of games games
+#test$model_prob <- predict(Win_Model2_final, test, type="response")
+#test <- test  %>% mutate(model_pred = 1*(model_prob > .5) + 0, home_wins = 1*(Home_Team_Won == 1) + 0)
+#test <- test %>% mutate(accurate = 1*(model_pred == home_wins))
+#sum(test$accurate)/nrow(test)
+
+
+#Testing model on recent games
+#Played_Recent_Games$model_prob <- predict(Win_model4, Played_Recent_Games, type="response")
+#Played_Recent_Games <- Played_Recent_Games  %>% mutate(model_pred = 1*(model_prob > .5) + 0, home_wins = 1*(Home_Team_Won == 1) + 0)
+#Played_Recent_Games <- Played_Recent_Games %>% mutate(accurate = 1*(model_pred == home_wins))
+#sum(Played_Recent_Games$accurate)/nrow(Played_Recent_Games)
+#View(Played_Recent_Games)
+```
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+```{r}
+year_range = c(2016, 2017, 2018, 2019, 2020)
+
+model_accuracy <- vector(mode = "list", length = 0)
+for (j in year_range){
+    year_train <- subset(test_data, test_data$Year == j)
+    year_train <- subset(year_train, year_train$schedule_week <= 8)
+    year_train <- year_train %>% na.omit(year_train$score_home)
+  
+   # sapply(year_train, typeof)
+    
+  #Model with Team offense/defense rank included and Completion percentage and rushing Y/A
+    test_model1 = glm(formula = `Home_Team_Won` ~ `Home Offense  Rk` + `Home Offense  Yds` + `Home Offense Passing TD` + `Home Offense Rushing TD` + `Home Offense Tot Yds & TO Y/P` + `Home Offense  TO%` + `Home Offense Penalties Yds` + `Home Defense  Rk` + `Home Defense  Yds` + `Home Defense Passing TD` + `Home Defense Rushing TD` + `Home Defense Tot Yds & TO Y/P` + `Home Defense  TO%` + `Home Defense Penalties Yds` + `Away Offense  Rk` + `Away Offense  Yds` + `Away Offense Passing TD` + `Away Offense Rushing TD` + `Away Offense Tot Yds & TO Y/P` + `Away Offense  TO%` + `Away Offense Penalties Yds` + `Away Defense  Rk` + `Away Defense  Yds` + `Away Defense Passing TD` + `Away Defense Rushing TD` + `Away Defense Tot Yds & TO Y/P` + `Away Defense  TO%` + `Away Defense Penalties Yds` + `Home Offense Completion Percentage` + `Home Defense Completion Percentage` + `Away Offense Completion Percentage` + `Away Defense Completion Percentage` + `Home Offense Rushing Y/A` + `Away Offense Rushing Y/A` + `Home Defense Rushing Y/A` + `Away Defense Rushing Y/A`, family = "binomial", data = year_train)
+
+  #Forwards stepAIC on model1
+    test_model2 <- glm(formula = `Home_Team_Won` ~ `Home Offense  Rk` + `Home Offense  Yds` + `Home Offense Passing TD` + `Home Offense Rushing TD` + `Home Offense Tot Yds & TO Y/P` + `Home Offense  TO%` + `Home Offense Penalties Yds` + `Home Defense  Rk` + `Home Defense  Yds` + `Home Defense Passing TD` + `Home Defense Rushing TD` + `Home Defense Tot Yds & TO Y/P` + `Home Defense  TO%` + `Home Defense Penalties Yds` + `Away Offense  Rk` + `Away Offense  Yds` + `Away Offense Passing TD` + `Away Offense Rushing TD` + `Away Offense Tot Yds & TO Y/P` + `Away Offense  TO%` + `Away Offense Penalties Yds` + `Away Defense  Rk` + `Away Defense  Yds` + `Away Defense Passing TD` + `Away Defense Rushing TD` + `Away Defense Tot Yds & TO Y/P` + `Away Defense  TO%` + `Away Defense Penalties Yds` + `Home Offense Completion Percentage` + `Home Defense Completion Percentage` + `Away Offense Completion Percentage` + `Away Defense Completion Percentage` + `Home Offense Rushing Y/A` + `Away Offense Rushing Y/A` + `Home Defense Rushing Y/A` + `Away Defense Rushing Y/A`, family = "binomial", data = year_train)
+    
+  #Backwords stepAIC on model1
+      test_model3 <- glm(formula = `Home_Team_Won` ~ `Home Offense  Rk` + `Home Offense Passing TD` + `Home Offense Rushing TD` + `Home Offense  TO%` + `Home Defense  Rk` + `Home Defense Passing TD` + `Home Defense Rushing TD` + `Away Offense  Rk` + `Away Offense  Yds` + `Away Offense Passing TD` + `Away Offense Rushing TD` + `Away Offense Tot Yds & TO Y/P` + `Away Offense  TO%` + `Away Defense  Rk` + `Away Defense  TO%` + `Away Offense Rushing Y/A`, family = "binomial", data = year_train)
+
+    #Same as model2 without team's rank
+      test_model4 = glm(formula = `Home_Team_Won` ~ `Home Offense  Yds` + `Home Offense Passing TD` + `Home Offense Rushing TD` + `Home Offense Tot Yds & TO Y/P` + `Home Offense  TO%` + `Home Offense Penalties Yds` + `Home Defense  Yds` + `Home Defense Passing TD` + `Home Defense Rushing TD` + `Home Defense Tot Yds & TO Y/P` + `Home Defense  TO%` + `Home Defense Penalties Yds` + `Away Offense  Yds` + `Away Offense Passing TD` + `Away Offense Rushing TD` + `Away Offense Tot Yds & TO Y/P` + `Away Offense  TO%` + `Away Offense Penalties Yds` + `Away Defense  Yds` + `Away Defense Passing TD` + `Away Defense Rushing TD` + `Away Defense Tot Yds & TO Y/P` + `Away Defense  TO%` + `Away Defense Penalties Yds` + `Home Offense Completion Percentage` + `Home Defense Completion Percentage` + `Away Offense Completion Percentage` + `Away Defense Completion Percentage` + `Home Offense Rushing Y/A` + `Away Offense Rushing Y/A` + `Home Defense Rushing Y/A` + `Away Defense Rushing Y/A`, family = "binomial", data = year_train)
+      
+     #Forwards stepAIC on model4
+     test_model5 <- glm(formula = `Home_Team_Won` ~ `Home Offense  Yds` + `Home Offense Passing TD` + `Home Offense Rushing TD` + `Home Offense Tot Yds & TO Y/P` + `Home Offense  TO%` + `Home Offense Penalties Yds` + `Home Defense  Yds` + `Home Defense Passing TD` + `Home Defense Rushing TD` + `Home Defense Tot Yds & TO Y/P` + `Home Defense  TO%` + `Home Defense Penalties Yds` + `Away Offense  Yds` + `Away Offense Passing TD` + `Away Offense Rushing TD` + `Away Offense Tot Yds & TO Y/P` + `Away Offense  TO%` + `Away Offense Penalties Yds` + `Away Defense  Yds` + `Away Defense Passing TD` + `Away Defense Rushing TD` + `Away Defense Tot Yds & TO Y/P` + `Away Defense  TO%` + `Away Defense Penalties Yds` + `Home Offense Completion Percentage` + `Home Defense Completion Percentage` + `Away Offense Completion Percentage` + `Away Defense Completion Percentage` + `Home Offense Rushing Y/A` + `Away Offense Rushing Y/A` + `Home Defense Rushing Y/A` + `Away Defense Rushing Y/A`, family = "binomial", data = year_train)
+     
+     #Backwards stepAIC on model4
+     test_model6 <- glm(formula = `Home_Team_Won` ~ `Home Offense Passing TD` + `Home Offense Rushing TD` + `Home Offense Tot Yds & TO Y/P` + `Home Offense  TO%` + `Home Offense Penalties Yds` + `Home Defense  Yds` + `Home Defense Passing TD` + `Home Defense Rushing TD` + `Home Defense  TO%` + `Home Defense Penalties Yds` + `Away Offense Passing TD` + `Away Offense Rushing TD` + `Away Offense Tot Yds & TO Y/P` + `Away Offense  TO%` + `Away Defense  Yds` + `Away Defense Passing TD` + `Away Defense Rushing TD` + `Away Defense  TO%` + `Home Defense Completion Percentage` + `Away Defense Completion Percentage` + `Away Offense Rushing Y/A`, family = "binomial", data = year_train)
+     
+     test_model7 <- glm(formula = Home_Team_Won ~ `Home Offense  Rk` + `Home Defense  Rk` + `Away Offense  Rk` + `Away Defense  Rk`, family = "binomial", data = year_train)
+     
+     #Almost all data with a Backwards Step
+     test_model8 <- glm(formula = Home_Team_Won ~ `Home Offense  PF` + `Home Offense Passing Att` + `Home Offense Passing Yds` + `Home Offense Passing NY/A` + `Home Defense  PF` + `Home Defense Penalties Yds` + `Away Offense  PF` + `Away Offense Tot Yds & TO Y/P` + `Away Offense  1stD` + `Away Offense Passing Yds` + `Away Offense Rushing Y/A` + `Away Defense  PF` + `Away Defense Tot Yds & TO Y/P` + `Away Defense Passing Att` + `Away Defense Passing Yds` + `Away Defense Passing NY/A` + `Away Defense Rushing TD`, family = "binomial", data = year_train)
+
+    models <- list(test_model1, test_model2, test_model3, test_model4, test_model5, test_model6, test_model7, test_model8)
+    
+    for (model in models){
+      year_test <- subset(final_results, final_results$Year == j)
+      year_test <- subset(year_test, year_test$schedule_week > 8) 
+      year_test <- subset(year_test, year_test$schedule_playoff == FALSE)
+      year_train <- year_train %>% na.omit(year_train$score_home)
+
+      year_test$model_prob <- predict(model, year_test, type="response")
+      year_test <- year_test  %>% mutate(model_pred = 1*(model_prob > .49) + 0, home_wins = 1*(Home_Team_Won == 1) + 0)
+      year_test <- year_test %>% mutate(accurate = 1*(model_pred == home_wins))
+      model_accuracy =  c(model_accuracy, (sum(year_test$accurate)/nrow(year_test)))
+    }
+}
+
+model1_accuracy_var <- sum((0.1*model_accuracy[[1]]) + (0.15*model_accuracy[[9]]) + (0.2*model_accuracy[[17]]) + (0.25*model_accuracy[[25]]) + (0.3*model_accuracy[[33]]))
+#print(model1_accuracy_var)
+
+model1_accuracy_avg = sum((0.2*model_accuracy[[1]]) + (0.2*model_accuracy[[9]]) + (0.2*model_accuracy[[17]]) + (0.2*model_accuracy[[25]]) + (0.2*model_accuracy[[33]]))
+#print(model1_accuracy_avg)
+
+model2_accuracy_var <- sum((0.1*model_accuracy[[2]]) + (0.15*model_accuracy[[10]]) + (0.2*model_accuracy[[18]]) + (0.25*model_accuracy[[26]]) + (0.3*model_accuracy[[34]]))
+#print(model2_accuracy_var)
+
+model2_accuracy_avg = sum((0.2*model_accuracy[[2]]) + (0.2*model_accuracy[[10]]) + (0.2*model_accuracy[[18]]) + (0.2*model_accuracy[[26]]) + (0.2*model_accuracy[[34]]))
+#print(model2_accuracy_avg)
+
+model3_accuracy_var <- sum((0.1*model_accuracy[[3]]) + (0.15*model_accuracy[[11]]) + (0.2*model_accuracy[[19]]) + (0.25*model_accuracy[[27]]) + (0.3*model_accuracy[[35]]))
+#print(model3_accuracy_var)
+
+model3_accuracy_avg = sum((0.2*model_accuracy[[3]]) + (0.2*model_accuracy[[11]]) + (0.2*model_accuracy[[19]]) + (0.2*model_accuracy[[27]]) + (0.2*model_accuracy[[35]]))
+#print(model3_accuracy_avg)
+
+model4_accuracy_var <- sum((0.1*model_accuracy[[4]]) + (0.15*model_accuracy[[12]]) + (0.2*model_accuracy[[20]]) + (0.25*model_accuracy[[28]]) + (0.3*model_accuracy[[36]]))
+#print(model4_accuracy_var)
+
+model4_accuracy_avg = sum((0.2*model_accuracy[[4]]) + (0.2*model_accuracy[[12]]) + (0.2*model_accuracy[[20]]) + (0.2*model_accuracy[[28]]) + (0.2*model_accuracy[[36]]))
+#print(model4_accuracy_avg)
+
+model5_accuracy_var <- sum((0.1*model_accuracy[[5]]) + (0.15*model_accuracy[[13]]) + (0.2*model_accuracy[[21]]) + (0.25*model_accuracy[[29]]) + (0.3*model_accuracy[[37]]))
+#print(model5_accuracy_var)
+
+model5_accuracy_avg = sum((0.2*model_accuracy[[5]]) + (0.2*model_accuracy[[13]]) + (0.2*model_accuracy[[21]]) + (0.2*model_accuracy[[29]]) + (0.2*model_accuracy[[37]]))
+#print(model5_accuracy_avg)
+
+model6_accuracy_var <- sum((0.1*model_accuracy[[6]]) + (0.15*model_accuracy[[14]]) + (0.2*model_accuracy[[22]]) + (0.25*model_accuracy[[30]]) + (0.3*model_accuracy[[38]]))
+print(model6_accuracy_var)
+
+model6_accuracy_avg = sum((0.2*model_accuracy[[6]]) + (0.2*model_accuracy[[14]]) + (0.2*model_accuracy[[22]]) + (0.2*model_accuracy[[30]]) + (0.2*model_accuracy[[38]]))
+print(model6_accuracy_avg)
+
+model7_accuracy_var <- sum((0.1*model_accuracy[[7]]) + (0.15*model_accuracy[[15]]) + (0.2*model_accuracy[[23]]) + (0.25*model_accuracy[[31]]) + (0.3*model_accuracy[[39]]))
+#print(model7_accuracy_var)
+
+model7_accuracy_avg = sum((0.2*model_accuracy[[7]]) + (0.2*model_accuracy[[15]]) + (0.2*model_accuracy[[23]]) + (0.2*model_accuracy[[31]]) + (0.2*model_accuracy[[39]]))
+#print(model7_accuracy_avg)
+
+model8_accuracy_var <- sum((0.1*model_accuracy[[8]]) + (0.15*model_accuracy[[16]]) + (0.2*model_accuracy[[24]]) + (0.25*model_accuracy[[32]]) + (0.3*model_accuracy[[40]]))
+#print(model8_accuracy_var)
+
+model8_accuracy_avg = sum((0.2*model_accuracy[[8]]) + (0.2*model_accuracy[[16]]) + (0.2*model_accuracy[[24]]) + (0.2*model_accuracy[[32]]) + (0.2*model_accuracy[[40]]))
+#print(model8_accuracy_avg)
+
+
+model_accuracy_avg = c(model1_accuracy_avg, model2_accuracy_avg, model3_accuracy_avg, model4_accuracy_avg, model5_accuracy_avg, model6_accuracy_avg, model7_accuracy_avg, model8_accuracy_avg)
+model_accuracy_weighted_avg = c(model1_accuracy_var, model2_accuracy_var, model3_accuracy_var, model4_accuracy_var, model5_accuracy_var, model6_accuracy_var, model7_accuracy_var, model8_accuracy_var)
+
+
+Models <- c("Model 1", "Model 2", "Model 3", "Model 4", "Model 5", "Model 6", "Model 7", "Model 8")
+
+df = data_frame()
+for (i in 1:8){
+  x <- list(Models[i], model_accuracy_avg[i], model_accuracy_weighted_avg[i])
+  df <- rbind(df, x)
+}
+
+colnames(df) <- c("Models", "Model Accuarcy Average", "Model Weighted Accuarcy Average")
+df
+
+sapply(df, typeof)
+
+p <-ggplot(data=df, aes(x = `Models`, y = `Model Accuarcy Average`)) +
+  geom_bar(stat="identity") + ggtitle("Model Accuracy Average over the Past 5 years")
+p
+
+p2 <-ggplot(data=df, aes(x = `Models`, y = `Model Weighted Accuarcy Average`)) +
+  geom_bar(stat="identity") + ggtitle("Weighted Model Accuracy Average over the Past 5 years")
+p2
+
+```
